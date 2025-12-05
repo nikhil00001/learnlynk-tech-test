@@ -150,11 +150,21 @@ Add a section titled:
 
 Write **8–12 lines** describing how you would implement a Stripe Checkout flow for an application fee, including:
 
-- When you insert a `payment_requests` row  
-- When you call Stripe  
-- What you store from the checkout session  
-- How you handle webhooks  
-- How you update the application after payment succeeds  
+– When you insert a `payment_requests` row 
+-Right when they click "Pay". I create the row with status 'pending' immediately. Need to have that record exists before sending them off-site to Stripe, otherwise we lose visibility on abandoned attempts.
+
+– When you call Stripe 
+-Directly after the DB insert. I'd create the session and pass my internal payment_request_id as the client_reference_id. Also tossing the application_id into the metadata so the webhook knows exactly what it's paying for.
+
+– What you store from the checkout session 
+-Just the stripe_session_id mostly. I'd update the local row with it. It's basically my safety net—if the webhook fails, I can use this ID to query Stripe manually later to see what happened.
+
+– How you handle webhooks 
+-I'd just listen for checkout.session.completed. Verify the signature (obviously), then grab that client_reference_id I sent earlier to find the local record and flip the status to 'paid'.
+
+– How you update the application after payment succeeds 
+-I’d wrap this in a transaction with the payment update. If the payment marks as 'paid', I find the linked application and set it to 'submitted'. Doing it atomically so we don't end up with a paid payment but a draft application if something glitches.
+
 
 ---
 
@@ -165,3 +175,5 @@ Write **8–12 lines** describing how you would implement a Stripe Checkout flow
 3. Share the link.
 
 Good luck.
+
+
