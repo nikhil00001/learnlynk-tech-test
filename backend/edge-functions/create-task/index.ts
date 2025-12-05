@@ -35,6 +35,53 @@ serve(async (req: Request) => {
     // - check task_type in VALID_TYPES
     // - parse due_at and ensure it's in the future
 
+    
+    // Check for missing fields
+    if (!application_id || !task_type || !due_at) {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Check task_type
+    if (!VALID_TYPES.includes(task_type)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid task_type. Must be one of: ${VALID_TYPES.join(", ")}` }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check due_at (Must be a valid date AND in the future)
+    const dueDate = new Date(due_at);
+    if (isNaN(dueDate.getTime())) {
+      return new Response(JSON.stringify({ error: "Invalid date format for due_at" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (dueDate <= new Date()) {
+      return new Response(JSON.stringify({ error: "due_at must be in the future" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Fetch Tenant ID
+    const { data: applicationData, error: appError } = await supabase
+      .from("applications")
+      .select("tenant_id")
+      .eq("id", application_id)
+      .single();
+
+    if (appError || !applicationData) {
+      return new Response(JSON.stringify({ error: "Application not found" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // TODO: insert into tasks table using supabase client
 
     // Example:
@@ -43,6 +90,23 @@ serve(async (req: Request) => {
     //   .insert({ ... })
     //   .select()
     //   .single();
+
+    const { data: taskData, error: insertError } = await supabase
+      .from("tasks")
+      .insert({
+        tenant_id: applicationData.tenant_id, 
+        application_id: application_id,
+        type: task_type,                      
+        due_at: due_at,
+        status: "open"                        
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      console.error("Insert Error:", insertError);
+      throw insertError;
+    }
 
     // TODO: handle error and return appropriate status code
 
@@ -53,11 +117,11 @@ serve(async (req: Request) => {
     // });
 
     return new Response(
-      JSON.stringify({ error: "Not implemented. Please complete this function." }),
-      { status: 501, headers: { "Content-Type": "application/json" } },
+      JSON.stringify({ success: true, task_id: taskData.id }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error(err);
+    console.error("Error: ", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
