@@ -19,23 +19,16 @@ export default function TodayDashboard() {
     setError(null);
 
     try {
-      // TODO:
-      // - Query tasks that are due today and not completed
-      // - Use supabase.from("tasks").select(...)
-      // - You can do date filtering in SQL or client-side
-
-      // Example:
-      // const { data, error } = await supabase
-      //   .from("tasks")
-      //   .select("*")
-      //   .eq("status", "open");
-
+      // Calculate start and end of "Today" to filter the query
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-    
+      // Query: 
+      // 1. Status is NOT completed
+      // 2. due_at is greater than or equal to start of today
+      // 3. due_at is less than start of tomorrow
       const { data, error } = await supabase
         .from("tasks")
         .select("*")
@@ -57,11 +50,7 @@ export default function TodayDashboard() {
 
   async function markComplete(id: string) {
     try {
-      // TODO:
-      // - Update task.status to 'completed'
-      // - Re-fetch tasks or update state optimistically
-
-      
+      // Optimistic update: Update UI immediately before server responds
       setTasks((prev) => prev.filter((t) => t.id !== id));
 
       const { error } = await supabase
@@ -73,11 +62,15 @@ export default function TodayDashboard() {
         throw error;
       }
       
+      // Optional: strictly re-fetch to ensure sync, 
+      // but purely optimistic is fine for this scope.
+      // await fetchTasks(); 
 
     } catch (err: any) {
       console.error(err);
       alert("Failed to update task");
-      fetchTasks();
+      // Revert optimistic update on error would go here
+      fetchTasks(); 
     }
   }
 
@@ -94,11 +87,11 @@ export default function TodayDashboard() {
       {tasks.length === 0 && <p>No tasks due today 🎉</p>}
 
       {tasks.length > 0 && (
-        <table>
+        <table border={1} cellPadding={10} style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
-            <tr>
+            <tr style={{ textAlign: "left" }}>
               <th>Type</th>
-              <th>Application</th>
+              <th>Application ID</th>
               <th>Due At</th>
               <th>Status</th>
               <th>Action</th>
@@ -107,16 +100,17 @@ export default function TodayDashboard() {
           <tbody>
             {tasks.map((t) => (
               <tr key={t.id}>
-                <td>{t.type}</td>
-                <td>{t.application_id}</td>
+                <td style={{ textTransform: "capitalize" }}>{t.type}</td>
+                <td style={{ fontFamily: "monospace" }}>{t.application_id}</td>
                 <td>{new Date(t.due_at).toLocaleString()}</td>
                 <td>{t.status}</td>
                 <td>
-                  {t.status !== "completed" && (
-                    <button onClick={() => markComplete(t.id)}>
-                      Mark Complete
-                    </button>
-                  )}
+                  <button 
+                    onClick={() => markComplete(t.id)}
+                    style={{ cursor: "pointer", padding: "5px 10px" }}
+                  >
+                    Mark Complete
+                  </button>
                 </td>
               </tr>
             ))}
